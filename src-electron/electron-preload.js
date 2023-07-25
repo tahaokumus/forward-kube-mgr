@@ -1,29 +1,43 @@
-/**
- * This file is used specifically for security reasons.
- * Here you can access Nodejs stuff and inject functionality into
- * the renderer thread (accessible there through the "window" object)
- *
- * WARNING!
- * If you import anything from node_modules, then make sure that the package is specified
- * in package.json > dependencies and NOT in devDependencies
- *
- * Example (injects window.myAPI.doAThing() into renderer thread):
- *
- *   import { contextBridge } from 'electron'
- *
- *   contextBridge.exposeInMainWorld('myAPI', {
- *     doAThing: () => {}
- *   })
- *
- * WARNING!
- * If accessing Node functionality (like importing @electron/remote) then in your
- * electron-main.js you will need to set the following when you instantiate BrowserWindow:
- *
- * mainWindow = new BrowserWindow({
- *   // ...
- *   webPreferences: {
- *     // ...
- *     sandbox: false // <-- to be able to import @electron/remote in preload script
- *   }
- * }
- */
+import { contextBridge } from 'electron'
+const { spawn } = require('child_process')
+
+contextBridge.exposeInMainWorld('electron', {
+  async checkKubeCtlExists() {
+    return new Promise((resolve, reject) => {
+      const command = spawn('kubectl', ['version'])
+      command.on('close', (code) => {
+        if (code === 0) {
+          resolve(true)
+        } else {
+          reject(false)
+        }
+      })
+    })
+  },
+  async getPods(env = 'staging') {
+    return new Promise((resolve, reject) => {
+      const process = spawn(
+        'kubectl',
+        ['get', 'pods', '-n', env, '-o', 'json'],
+        {
+          encoding: 'utf-8',
+        },
+      )
+
+      let output = ''
+      process.stdout.on('data', (data) => {
+        output += data.toString()
+      })
+      process.stderr.on('data', (data) => {
+        reject(data)
+      })
+      process.on('close', (code) => {
+        if (code === 0) {
+          resolve(JSON.parse(output))
+        } else {
+          reject(code)
+        }
+      })
+    })
+  },
+})
