@@ -14,11 +14,11 @@ contextBridge.exposeInMainWorld('electron', {
       })
     })
   },
-  async getPods(env = 'staging') {
+  async getPods() {
     return new Promise((resolve, reject) => {
       const process = spawn(
         'kubectl',
-        ['get', 'pods', '-n', env, '-o', 'json'],
+        ['get', 'pods', '--all-namespaces', '-o', 'json'],
         {
           encoding: 'utf-8',
         },
@@ -37,6 +37,30 @@ contextBridge.exposeInMainWorld('electron', {
         } else {
           reject(code)
         }
+      })
+    })
+  },
+  async deletePods(pods, env = 'staging') {
+    return new Promise((resolve, reject) => {
+      pods.forEach((pod) => {
+        const process = spawn('kubectl', ['delete', 'pod', pod, '-n', env], {
+          encoding: 'utf-8',
+        })
+
+        let output = ''
+        process.stdout.on('data', (data) => {
+          output += data.toString()
+        })
+        process.stderr.on('data', (data) => {
+          reject(data)
+        })
+        process.on('close', (code) => {
+          if (code === 0) {
+            resolve(output)
+          } else {
+            reject(code)
+          }
+        })
       })
     })
   },
