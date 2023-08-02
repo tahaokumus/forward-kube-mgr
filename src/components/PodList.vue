@@ -58,16 +58,7 @@
     </template>
 
     <template v-slot:after>
-      <div class="bg-black full-height column-reverse q-pa-md overflow-auto">
-        <div
-          v-for="log in logStore.logs"
-          :key="log.id"
-          class="text-body1 text-weight-medium"
-          :class="getLogColor(log.type)"
-        >
-          {{ log.message }}
-        </div>
-      </div>
+      <LogConsole />
     </template>
   </q-splitter>
 </template>
@@ -78,6 +69,7 @@ import { useQuasar } from 'quasar'
 import { usePodsStore } from 'src/stores/pods'
 import { useWindowSize, useElementSize } from '@vueuse/core'
 import { useLogStore } from 'src/stores/log'
+import LogConsole from 'src/components/LogConsole.vue'
 
 //#region Composables
 const { loading } = useQuasar()
@@ -156,18 +148,6 @@ const getStatusColor = (status) => {
       return 'text-warning'
     case 'Failed':
       return 'text-negative'
-    default:
-      return 'text-primary-color'
-  }
-}
-const getLogColor = (type) => {
-  switch (type) {
-    case 'error':
-      return 'text-negative'
-    case 'info':
-      return 'text-primary-color'
-    case 'success':
-      return 'text-positive'
     default:
       return 'text-primary-color'
   }
