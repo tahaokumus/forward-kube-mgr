@@ -62,7 +62,7 @@
         <div
           v-for="log in logStore.logs"
           :key="log.id"
-          class="text-body1"
+          class="text-body1 text-weight-medium"
           :class="getLogColor(log.type)"
         >
           {{ log.message }}
