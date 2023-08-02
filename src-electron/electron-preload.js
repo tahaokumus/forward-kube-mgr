@@ -42,17 +42,18 @@ contextBridge.exposeInMainWorld('electron', {
   },
   async deletePods(pods, env = 'staging') {
     return new Promise((resolve, reject) => {
+      const output = []
+
       pods.forEach((pod) => {
         const process = spawn('kubectl', ['delete', 'pod', pod, '-n', env], {
           encoding: 'utf-8',
         })
 
-        let output = ''
         process.stdout.on('data', (data) => {
-          output += data.toString()
+          output.push({ message: data.toString(), type: 'success' })
         })
         process.stderr.on('data', (data) => {
-          reject(data)
+          output.push({ message: data.toString(), type: 'error' })
         })
         process.on('close', (code) => {
           if (code === 0) {
