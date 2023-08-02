@@ -25,16 +25,26 @@
 
   <q-table
     v-if="podStore.getPods.length"
-    flat
-    bordered
+    v-model:selected="selected"
     :rows="podStore.getPods"
+    color="dark"
+    flat
     row-key="name"
     selection="multiple"
-    v-model:selected="selected"
     :pagination="{
-      rowsPerPage: 20,
+      rowsPerPage: 30,
     }"
-  />
+  >
+    <template v-slot:body-cell="props">
+      <q-td :props="props">
+        <div>
+          <div :class="getStatusColor(props.value)">
+            {{ props.value }}
+          </div>
+        </div>
+      </q-td>
+    </template>
+  </q-table>
 </template>
 
 <script setup>
@@ -66,12 +76,12 @@ const getPods = async () => {
   try {
     const pods = await window.electron.getPods()
     podStore.setPods(pods.items)
+    console.log(pods)
   } catch (error) {
     console.error(error)
     error.value = error.message
   }
 }
-
 const checkKubeCtl = async () => {
   loading.show({
     message: 'Checking kubectl',
@@ -79,18 +89,31 @@ const checkKubeCtl = async () => {
   const kubeCtlExists = await window.electron.checkKubeCtlExists()
   if (!kubeCtlExists) {
     error.value = 'Kubectl not found'
-  } else {
-    loading.hide()
   }
 }
-
 const deletePods = async () => {
+  loading.show({
+    message: 'Deleting pods',
+  })
   const res = await window.electron.deletePods(
     [...selected.value.map((pod) => pod.name)],
     namespace.value,
   )
   console.log(res)
   selected.value = []
+  loading.hide()
+}
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'Running':
+      return 'text-positive'
+    case 'Pending':
+      return 'text-warning'
+    case 'Failed':
+      return 'text-negative'
+    default:
+      return 'text-primary-color'
+  }
 }
 //#endregion
 
@@ -122,12 +145,22 @@ const selected = computed({
 //#endregion
 
 //#region Created
-checkKubeCtl().then(() => {
-  getPods()
-  setInterval(() => {
-    getPods()
-  }, 1500)
-})
+checkKubeCtl()
+  .then(async () => {
+    loading.show({
+      message: 'Getting pods',
+    })
+    await getPods()
+    loading.hide()
+    setInterval(() => {
+      getPods()
+    }, 1500)
+  })
+  .catch((err) => {
+    console.error(err)
+    error.value = err.message
+    loading.hide()
+  })
 //#endregion
 
 //#region Providers
