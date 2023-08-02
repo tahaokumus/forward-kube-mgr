@@ -85,9 +85,10 @@ const checkKubeCtl = async () => {
 }
 
 const deletePods = async () => {
-  const res = await window.electron.deletePods([
-    ...selected.value.map((pod) => pod.name),
-  ])
+  const res = await window.electron.deletePods(
+    [...selected.value.map((pod) => pod.name)],
+    namespace.value,
+  )
   console.log(res)
   selected.value = []
 }
