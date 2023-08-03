@@ -40,6 +40,8 @@ const getLogColor = (type) => {
       return 'text-primary-color'
     case 'success':
       return 'text-positive'
+    case 'warning':
+      return 'text-warning'
     default:
       return 'text-primary-color'
   }

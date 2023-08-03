@@ -1,68 +1,42 @@
 import { contextBridge } from 'electron'
-const { spawn } = require('child_process')
+
+const k8s = require('@kubernetes/client-node')
+const kc = new k8s.KubeConfig()
+kc.loadFromDefault()
+
+const k8sApi = kc.makeApiClient(k8s.CoreV1Api)
 
 contextBridge.exposeInMainWorld('electron', {
-  async checkKubeCtlExists() {
-    return new Promise((resolve, reject) => {
-      const command = spawn('kubectl', ['version'])
-      command.on('close', (code) => {
-        if (code === 0) {
-          resolve(true)
-        } else {
-          reject(false)
-        }
-      })
-    })
+  async getNamespaces() {
+    const response = await k8sApi.listNamespace()
+    return response.body.items
   },
-  async getPods() {
-    return new Promise((resolve, reject) => {
-      const process = spawn(
-        'kubectl',
-        ['get', 'pods', '--all-namespaces', '-o', 'json'],
-        {
-          encoding: 'utf-8',
-        },
-      )
-
-      let output = ''
-      process.stdout.on('data', (data) => {
-        output += data.toString()
-      })
-      process.stderr.on('data', (data) => {
-        reject(data)
-      })
-      process.on('close', (code) => {
-        if (code === 0) {
-          resolve(JSON.parse(output))
-        } else {
-          reject(code)
-        }
-      })
-    })
+  async getPods(namespace) {
+    const response = await k8sApi.listNamespacedPod(namespace)
+    return response.body.items
   },
   async deletePods(pods, env = 'staging') {
-    return new Promise((resolve, reject) => {
-      const output = []
+    const output = []
 
-      pods.forEach((pod) => {
-        const process = spawn('kubectl', ['delete', 'pod', pod, '-n', env], {
-          encoding: 'utf-8',
-        })
+    for (const pod of pods) {
+      const process = await k8sApi.deleteNamespacedPod(pod, env)
+      console.log(process.response)
 
-        process.stdout.on('data', (data) => {
-          output.push({ message: data.toString(), type: 'success' })
+      if (process.response.statusCode === 200) {
+        output.push({
+          message: `deleted ${pod}`,
+          type: 'warning',
         })
-        process.stderr.on('data', (data) => {
-          output.push({ message: data.toString(), type: 'error' })
+      } else {
+        output.push({
+          message: `pod ${pod} failed to delete, status code: ${process.response.statusCode}`,
+          type: 'error',
         })
-        process.on('close', (code) => {
-          if (code === 0) {
-            resolve(output)
-          } else {
-            reject(code)
-          }
-        })
-      })
-    })
+      }
+
+      if (output.length === pods.length) {
+        return output
+      }
+    }
   },
 })

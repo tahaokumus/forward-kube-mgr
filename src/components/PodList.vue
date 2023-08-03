@@ -11,12 +11,12 @@
     ></q-btn>
 
     <q-select
-      v-if="podStore.getNamespaces.length"
+      v-if="podStore.namespaces.length"
       class="q-pa-md q-ml-auto flex-grow-3"
       style="max-width: 300px; flex-grow: 1"
       filled
       v-model="namespace"
-      :options="podStore.getNamespaces"
+      :options="podStore.namespaces"
       label="Namespace"
       dense
       @update:model-value="podStore.setNamespace($event)"
@@ -34,9 +34,9 @@
   >
     <template v-slot:before>
       <q-table
-        v-if="podStore.getPods.length"
+        v-if="podStore.pods.length"
         v-model:selected="selected"
-        :rows="podStore.getPods"
+        :rows="podStore.pods"
         color="dark"
         flat
         row-key="name"
@@ -64,7 +64,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { usePodsStore } from 'src/stores/pods'
 import { useWindowSize, useElementSize } from '@vueuse/core'
@@ -95,10 +95,9 @@ const { height: headerHeight } = useElementSize(headerRef)
 //#endregion
 
 //#region Methods
-const getPods = async () => {
+const getPods = async (isSilent) => {
   try {
-    const pods = await window.electron.getPods()
-    podStore.setPods(pods.items)
+    await podStore.getPods(isSilent)
   } catch (error) {
     logStore.addLog({
       message: error.message,
@@ -106,37 +105,23 @@ const getPods = async () => {
     })
   }
 }
-const checkKubeCtl = async () => {
+const getNamespaces = async () => {
   loading.show({
-    message: 'Checking kubectl',
+    message: 'Getting namespaces',
   })
-  logStore.addLog({
-    message: 'checking kubectl',
-    type: 'info',
-  })
-  const kubeCtlExists = await window.electron.checkKubeCtlExists()
-  if (!kubeCtlExists) {
-    throw new Error('kubectl could not be found')
+  try {
+    await podStore.getNameSpaces()
+  } catch (error) {
+    throw error
   }
-  logStore.addLog({
-    message: 'kubectl found',
-    type: 'success',
-  })
 }
 const deletePods = async () => {
   loading.show({
     message: 'Deleting pods',
   })
-  const responses = await window.electron.deletePods(
-    [...selected.value.map((pod) => pod.name)],
-    namespace.value,
-  )
-  responses.forEach((response) => {
-    logStore.addLog({
-      message: response.message,
-      type: response.type,
-    })
-  })
+
+  await podStore.deletePods(selectedPodNames.value)
+
   selected.value = []
   loading.hide()
 }
@@ -157,7 +142,7 @@ const getStatusColor = (status) => {
 //#region Computed Properties
 const namespace = computed({
   get() {
-    return podStore.getNamespace
+    return podStore.namespace
   },
   set(value) {
     podStore.setNamespace(value)
@@ -165,13 +150,14 @@ const namespace = computed({
 })
 const selected = computed({
   get() {
-    return podStore.getPods.filter((pod) =>
-      selectedPods.value.includes(pod.name),
-    )
+    return podStore.pods.filter((pod) => selectedPods.value.includes(pod.name))
   },
   set(value) {
     selectedPods.value = value.map((pod) => pod.name)
   },
+})
+const selectedPodNames = computed(() => {
+  return selected.value.map((pod) => pod.name)
 })
 const splitterHeight = computed(() => {
   return screenHeight.value - headerHeight.value
@@ -179,39 +165,41 @@ const splitterHeight = computed(() => {
 //#endregion
 
 //#region Watchers
+watch(
+  () => namespace.value,
+  async () => {
+    await getPods()
+  },
+)
 //#endregion
 
 //#region Lifecycle Hooks
+onMounted(() => {
+  getNamespaces()
+    .then(async () => {
+      loading.show({
+        message: 'Getting pods',
+      })
+
+      await getPods()
+
+      loading.hide()
+      setInterval(() => {
+        getPods(true)
+      }, 1500)
+    })
+    .catch((err) => {
+      console.error(err)
+      logStore.addLog({
+        message: err.message,
+        type: 'error',
+      })
+      loading.hide()
+    })
+})
 //#endregion
 
 //#region Created
-checkKubeCtl()
-  .then(async () => {
-    loading.show({
-      message: 'Getting pods',
-    })
-    logStore.addLog({
-      message: 'getting pods',
-      type: 'info',
-    })
-    await getPods()
-    logStore.addLog({
-      message: `found ${podStore.pods.length} pods`,
-      type: 'success',
-    })
-    loading.hide()
-    setInterval(() => {
-      getPods()
-    }, 1500)
-  })
-  .catch((err) => {
-    console.error(err)
-    logStore.addLog({
-      message: err.message,
-      type: 'error',
-    })
-    loading.hide()
-  })
 //#endregion
 
 //#region Providers
