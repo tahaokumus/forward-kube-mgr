@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeTheme } from 'electron'
+import { app, BrowserWindow, nativeTheme, nativeImage } from 'electron'
 import { initialize, enable } from '@electron/remote/main'
 
 import path from 'path'
@@ -23,6 +23,13 @@ function createWindow() {
   /**
    * Initial window options
    */
+
+  if (platform === 'darwin') {
+    const image = nativeImage.createFromPath(
+      path.resolve(__dirname, '../../src-electron/icons/icon.png'),
+    )
+    app.dock.setIcon(image)
+  }
 
   mainWindow = new BrowserWindow({
     icon: path.resolve(__dirname, 'icons/icon.png'), // tray icon
